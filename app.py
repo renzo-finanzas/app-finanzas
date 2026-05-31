@@ -19,7 +19,7 @@ client = init_connection()
 
 # Conectar con tu archivo de Excel exacto
 try:
-    sheet = client.open("BD_Finanzas_Renzo").sheet1
+    sheet = client.open_by_key("17npLm-020o05haLr6ieTIMB5mBOuz4JJh7Sep5Z30JA").sheet1
 except Exception as e:
     st.error("Error conectando a la base de datos. Verifica el nombre del archivo.")
 
