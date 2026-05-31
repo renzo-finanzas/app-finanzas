@@ -1,4 +1,3 @@
-```python
 import streamlit as st
 import gspread
 from datetime import datetime
