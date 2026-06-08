@@ -3,68 +3,59 @@ import gspread
 from datetime import datetime
 import pytz
 
-# Configuración básica de la pantalla del celular
 st.set_page_config(page_title="Ingeniería de Vida - Finanzas", layout="centered")
 st.title("💸 Control de Flujo")
 
-# Conexión segura a la base de datos (Google Sheets)
 @st.cache_resource
 def init_connection():
-    # Extraemos la llave desde la bóveda de Streamlit (la configuraremos luego)
     cred_dict = dict(st.secrets["gcp_service_account"])
     gc = gspread.service_account_from_dict(cred_dict)
     return gc
 
 client = init_connection()
 
-# Conectar con tu archivo de Excel exacto
 try:
-    sheet = client.open_by_key("17npLm-020o05haLr6ieTIMB5mBOuz4JJh7Sep5Z30JA").sheet1
+    # REEMPLAZA ESTO CON EL ID REAL DE TU EXCEL
+    spreadsheet = client.open_by_key("17npLm-020o05haLr6ieTIMB5mBOuz4JJh7Sep5Z30JA")
+    sheet_registros = spreadsheet.worksheet("Hoja 1")
+    sheet_maestro = spreadsheet.worksheet("Maestro_Categorias")
 except Exception as e:
-    st.error("Error conectando a la base de datos. Verifica el nombre del archivo.")
+    st.error("Error conectando a la base de datos.")
+    st.stop()
 
-# Maestro de Categorías (Nivel 2 y Nivel 3)
-categorias = {
-    "1. Ingresos": ["Sueldo fijo", "Utilidades / Bonos", "Reembolsos operativos", "Ventas de segunda mano / Otros"],
-    "2. Ahorro e Inversión (Transferencias)": ["Fondo Inicial Departamento", "Fondo Auto (2027)", "Fondo Terreno (Tingo María)", "Fondo Proyecto Bebé (2030)", "Fondo de Emergencia"],
-    "3. Vivienda e Infraestructura": ["Alquiler / Mantenimiento", "Servicios (Luz, Agua, Internet)", "Plan Celular", "Proyectos DIY / Materiales para muebles", "Artículos de limpieza / Hogar"],
-    "4. Alimentación y Despensa": ["Supermercado / Mercado (Comida en casa)", "Suplementos deportivos (Proteína, etc.)"],
-    "5. Salud y Desarrollo": ["Membresía de Gimnasio", "Educación (Cursos Python, Inglés)", "Libros (Manuales técnicos, Literatura clásica)", "Salud (Consultas, farmacia, seguro)"],
-    "6. Estilo de Vida y Ocio": ["Entretenimiento (Juegos PS5, Mobile Legends)", "Suscripciones (PS Plus, Streaming, Apps)", "Alimentación fuera (Antojos, delivery, cafés)", "Cuidado personal (Barbería, aseo)", "Ropa y Calzado"],
-    "7. Pareja": ["Citas y salidas", "Regalos y detalles", "Apoyo logístico / Universitario"],
-    "8. Familia": ["Apoyo mensual a padres", "Regalos / Cumpleaños / Eventos familiares"],
-    "9. Transporte": ["Transporte público regular", "Taxis (Aplicativos)"],
-    "10. Trabajo (Viáticos y Rendiciones)": ["Movilidad a CEDIs (Lima y Provincia)", "Alimentación en ruta", "Hospedaje de trabajo"],
-    "11. Obligaciones Financieras": ["Comisiones bancarias", "Intereses de tarjetas de crédito (Solo si aplica)"]
-}
+# 1. Leer la matriz dinámica
+registros_maestro = sheet_maestro.get_all_records()
 
-# Diseño del formulario en pantalla
-with st.form("registro_form"):
-    categoria_sel = st.selectbox("Categoría Macro (Flujo)", list(categorias.keys()))
-    subcategoria_sel = st.selectbox("Detalle 1 (Subcategoría específica)", categorias[categoria_sel])
-    glosa = st.text_input("Detalle 2 (Glosa / Contexto) - Solo si es necesario")
-    monto = st.number_input("Monto (S/)", min_value=0.0, step=1.0, format="%.2f")
-    
-    submit_button = st.form_submit_button(label="Registrar Movimiento")
+# 2. Extraer opciones únicas para los menús
+macros = list(dict.fromkeys([str(r["Macro"]).strip() for r in registros_maestro if str(r["Macro"]).strip()]))
+medios_pago = list(dict.fromkeys([str(r.get("Medio_Pago", "")).strip() for r in registros_maestro if str(r.get("Medio_Pago", "")).strip()]))
 
-# Lógica de inserción de datos
-if submit_button:
+# 3. Interfaz gráfica (Filtros en cascada)
+macro_sel = st.selectbox("1. Bolsillo (Macro)", macros)
+
+categorias = list(dict.fromkeys([str(r["Categoria"]).strip() for r in registros_maestro if str(r["Macro"]).strip() == macro_sel and str(r["Categoria"]).strip()]))
+cat_sel = st.selectbox("2. Destino (Categoría)", categorias)
+
+conceptos = list(dict.fromkeys([str(r["Concepto"]).strip() for r in registros_maestro if str(r["Macro"]).strip() == macro_sel and str(r["Categoria"]).strip() == cat_sel and str(r["Concepto"]).strip()]))
+concepto_sel = st.selectbox("3. Naturaleza (Concepto)", conceptos)
+
+if medios_pago:
+    medio_sel = st.selectbox("4. Cuenta / Medio de Pago", medios_pago)
+else:
+    st.error("No se encontraron Medios de Pago en la columna E de tu Excel.")
+    st.stop()
+
+glosa = st.text_input("Detalle Extra (Glosa) - Opcional")
+monto = st.number_input("Monto (S/)", min_value=0.0, step=1.0, format="%.2f")
+
+# 4. Registro con estructura optimizada (7 columnas netas, sin redundancia de Tipo)
+if st.button("Registrar Movimiento"):
     if monto > 0:
-        # Determinar el tipo de flujo automáticamente para no ensuciar el reporte
-        if categoria_sel.startswith("1."):
-            tipo = "Ingreso"
-        elif categoria_sel.startswith("2."):
-            tipo = "Transferencia"
-        else:
-            tipo = "Salida"
-        
-        # Ajuste horario
         zona_horaria = pytz.timezone("America/Lima")
         fecha_actual = datetime.now(zona_horaria).strftime("%Y-%m-%d %H:%M:%S")
         
-        # Estructurar fila y enviarla a Sheets
-        fila_nueva = [fecha_actual, tipo, categoria_sel, subcategoria_sel, glosa, monto]
-        sheet.append_row(fila_nueva)
-        st.success(f"✅ S/ {monto} registrado exitosamente como {tipo}.")
+        fila_nueva = [fecha_actual, macro_sel, cat_sel, concepto_sel, medio_sel, glosa, monto]
+        sheet_registros.append_row(fila_nueva)
+        st.success(f"✅ S/ {monto} registrado desde {medio_sel}.")
     else:
         st.error("⚠️ El monto debe ser mayor a 0.")
