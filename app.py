@@ -39,13 +39,27 @@ cat_sel = st.selectbox("2. Destino (Categoría)", categorias)
 conceptos = list(dict.fromkeys([str(r["Concepto"]).strip() for r in registros_maestro if str(r["Macro"]).strip() == macro_sel and str(r["Categoria"]).strip() == cat_sel and str(r["Concepto"]).strip()]))
 concepto_sel = st.selectbox("3. Naturaleza (Concepto)", conceptos)
 
+# --- BUSQUEDA DINÁMICA DE LA REFERENCIA ---
+referencia_visual = ""
+for r in registros_maestro:
+    if str(r.get("Macro", "")).strip() == macro_sel and \
+       str(r.get("Categoria", "")).strip() == cat_sel and \
+       str(r.get("Concepto", "")).strip() == concepto_sel:
+        referencia_visual = str(r.get("Referencia (Ayuda / Glosa)", "")).strip()
+        break
+
+# Campo informativo deshabilitado (Solo lectura, cambia según el concepto)
+st.text_input("Guía de Asignación (Referencia)", value=referencia_visual, disabled=True)
+# ------------------------------------------
+
 if medios_pago:
     medio_sel = st.selectbox("4. Cuenta / Medio de Pago", medios_pago)
 else:
     st.error("No se encontraron Medios de Pago en la columna E de tu Excel.")
     st.stop()
 
-glosa = st.text_input("Detalle Extra (Glosa) - Opcional")
+# Ajuste de etiqueta solicitado
+glosa = st.text_input("Detalle Extra - Opcional")
 monto = st.number_input("Monto (S/)", min_value=0.0, step=1.0, format="%.2f")
 
 # 4. Registro con estructura optimizada (7 columnas netas, sin redundancia de Tipo)
