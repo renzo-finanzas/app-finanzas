@@ -17,7 +17,7 @@ client = init_connection()
 try:
     # REEMPLAZA ESTO CON EL ID REAL DE TU EXCEL
     spreadsheet = client.open_by_key("17npLm-020o05haLr6ieTIMB5mBOuz4JJh7Sep5Z30JA")
-    sheet_registros = spreadsheet.worksheet("Hoja 1")
+    sheet_registros = spreadsheet.worksheet("Registros")
     sheet_maestro = spreadsheet.worksheet("Maestro_Categorias")
 except Exception as e:
     st.error("Error conectando a la base de datos.")
